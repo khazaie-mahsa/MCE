@@ -21,7 +21,7 @@ def load_mask(path: str, threshold: int = 125):
     """
 
     mask = Image.open(path).convert('L')
-    mask = np.asarray(mask, dtype=np.int)
+    mask = np.asarray(mask, dtype=int)
     mask[mask > threshold] = 255
     mask[mask <= threshold] = 0
     mask[mask == 255] = 1

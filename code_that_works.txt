@@ -7,9 +7,6 @@ from miou.metrics import miou
 from miou.utils.mask_loader import load_mask
 from miou.utils.segmentation import GridBasedSegmentation
 from scipy.stats import linregress
-from miou.edge_detection import sobel
-from scipy.integrate import trapezoid, simpson
-
 
 def pre_process_masks(mask1, mask2, scale):  # This is the function s in the paper
     preprocessor1 = GridBasedSegmentation(mask1, scale)
@@ -35,25 +32,17 @@ def calculate_ce(gt, prediction, scale):
     # return custom_bce_simplified(gt, prediction)
     print(prediction)
     print(gt)
-    loss = nn.BCEWithLogitsLoss()
+    loss = nn.BCEWithLogitsLoss(reduction="mean")
     # loss = nn.BCELoss()
-    # loss = nn.CrossEntropyLoss()
-    l = loss(prediction, gt)
-    print(l)
-    print("-------------------------------------------------------------")
-    return l
+    return loss(prediction, gt)
 
 
 def calculate_area(distances, scales):
-    # normalized_boxsizes = miou.normalize_boxsizes(scales)
-    # slope, _, _, _, _ = linregress(normalized_boxsizes, distances)
-    # aiou = np.abs(slope)
-    #
-    # area = miou.integral_trapezoidal(distances, dx=1 / (len(scales) - 1))
-    sd = np.std(scales)
-    mean = np.mean(scales)
-    normalized_scales = (scales-mean)/sd
-    area = simpson(distances, normalized_scales)
+    normalized_boxsizes = miou.normalize_boxsizes(scales)
+    slope, _, _, _, _ = linregress(normalized_boxsizes, distances)
+    aiou = np.abs(slope)
+
+    area = miou.integral_trapezoidal(distances, dx=1 / (len(scales) - 1))
     return area
 
 
@@ -82,46 +71,38 @@ def iou(mask1, mask2):
 
 def main():
     gt = load_mask("./test_images/test_segm_input_B/mask1.png")
-    img2 = load_mask("./test_images/test_segm_input_B/mask2.png")
+    # img2 = load_mask("./test_images/test_segm_input_B/mask2.png")
     # img2 = load_mask("./test_images/test_segm_input_B/mask3.png")
-    # img2 = load_mask("./test_images/test_segm_input_B/mask1.png")
+    img2 = load_mask("./test_images/test_segm_input_B/mask1.png")
 
-    scales = np.power(2, np.linspace(0, 9, num=10, dtype=int))
+    scales = pow(2, np.linspace(0, 9, num=10, dtype=int))
 
     distances = []
     box_counting_m1 = []
-    box_counting_m2 = []
     box_counting_distance = []
-    gt = sobel.get_edges(gt)
-    img2 = sobel.get_edges(img2)
     for scale in scales:
         s_gt, s_img2 = pre_process_masks(gt, img2, scale)
         box_counting_m1.append(np.sum(s_gt) + 1)
-        box_counting_m2.append(np.sum(s_img2) + 1)
+        # box_counting_m2.append(np.sum(s_img2) + 1)
         # distance = calculate_ce(torch.from_numpy(s_gt.astype(float)), torch.from_numpy(s_img2.astype(float)), scale)
-        # distance = calculate_ce(
-        #     torch.tensor(box_counting_m1[-1], dtype=torch.float),
-        #     torch.tensor(box_counting_m2[-1], dtype=torch.float),
-        #     scale)
         distance = calculate_ce(
-            torch.tensor(s_gt, dtype=torch.float),
-            torch.tensor(s_img2, dtype=torch.float),
+            torch.tensor(gt, dtype=torch.float),
+            torch.tensor(img2, dtype=torch.float),
             scale)
         # print(f"scale: {scale}")
         # print(f"loss: {distance}")
-        box_counting_distance.append(torch.sum(distance))
-        print(f"box_counting_1: {box_counting_m1}")
-        print(f"box_counting_2: {box_counting_m2}")
+        # box_counting_distance.append(torch.sum(distance))
+        # print(box_counting_distance)
         distances.append(distance)
 
-    miou_obj = miou.MIoU(scales, edge_only=True)
+    miou_obj = miou.MIoU(scales)
     miou_obj.measure(gt, img2)
     print(f"miou: {miou_obj.area}")
 
     scales = miou.normalize_boxsizes(scales)
     # mce = trapezoidal_rule(scales, normalized_boxsizes)
-    # mce = scipy.integrate.trapezoid(scales, distances)
-    mce = calculate_area(distances, scales)
+    mce = scipy.integrate.trapezoid(scales, distances)
+    # mce = calculate_area(distances, scales)
     print(f"distances: {distances}")
     print(f"mce: {mce}")
 
