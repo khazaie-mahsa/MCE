@@ -1,7 +1,10 @@
+import copy
+
 import numpy as np
 import scipy.integrate
 import torch.nn as nn
 import torch
+from sklearn.preprocessing import MinMaxScaler
 
 from miou.metrics import miou
 from miou.utils.mask_loader import load_mask
@@ -45,14 +48,10 @@ def calculate_ce(gt, prediction, scale):
 
 
 def calculate_area(distances, scales):
-    # normalized_boxsizes = miou.normalize_boxsizes(scales)
-    # slope, _, _, _, _ = linregress(normalized_boxsizes, distances)
-    # aiou = np.abs(slope)
-    #
-    # area = miou.integral_trapezoidal(distances, dx=1 / (len(scales) - 1))
-    sd = np.std(scales)
-    mean = np.mean(scales)
-    normalized_scales = (scales-mean)/sd
+    b = copy.deepcopy(scales).reshape((-1, 1))
+    normalized_scales = MinMaxScaler().fit_transform(b)
+    normalized_scales = normalized_scales.reshape(-1)
+    print(f'distances after conversion:{distances}')
     area = simpson(distances, normalized_scales)
     return area
 
@@ -119,10 +118,8 @@ def main():
     print(f"miou: {miou_obj.area}")
 
     scales = miou.normalize_boxsizes(scales)
-    # mce = trapezoidal_rule(scales, normalized_boxsizes)
-    # mce = scipy.integrate.trapezoid(scales, distances)
-    mce = calculate_area(distances, scales)
     print(f"distances: {distances}")
+    mce = calculate_area(distances, scales)
     print(f"mce: {mce}")
 
     # gt, img3 = pre_process_masks(gt, img3)
