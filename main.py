@@ -4,6 +4,8 @@ import numpy as np
 import scipy.integrate
 import torch.nn as nn
 import torch
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import xticks
 from sklearn.preprocessing import MinMaxScaler
 
 from miou.metrics import miou
@@ -34,16 +36,9 @@ def custom_bce_simplified(target, predictions, reduction="mean"):
     return loss
 
 
-def calculate_ce(gt, prediction, scale):
-    # return custom_bce_simplified(gt, prediction)
-    print(prediction)
-    print(gt)
+def calculate_bce_with_logits(gt, prediction, scale):
     loss = nn.BCEWithLogitsLoss()
-    # loss = nn.BCELoss()
-    # loss = nn.CrossEntropyLoss()
     l = loss(prediction, gt)
-    print(l)
-    print("-------------------------------------------------------------")
     return l
 
 
@@ -54,6 +49,21 @@ def calculate_area(distances, scales):
     print(f'distances after conversion:{distances}')
     area = simpson(distances, normalized_scales)
     return area
+
+
+def visualize_distance(distances):
+    colors = ['green', 'red', 'orange', 'blue']
+    labels = ['gt-gt', 'gt-mask2', 'gt-mask3']
+    scales = [*distances[0].keys()]
+    for i, img_distances in enumerate(distances):
+        plt.plot(scales, img_distances.values(), label=labels[i], color=colors[i])
+        xticks(scales, scales)
+        plt.title('Visualization of distances at each scale (not normalized)')
+        plt.xlabel('scale')
+        plt.ylabel('distance')
+    plt.grid(axis='x', color='0.95')
+    plt.legend()
+    plt.show()
 
 
 def trapezoidal_rule(x, y):
@@ -75,53 +85,59 @@ def trapezoidal_rule(x, y):
 
     return area
 
+
 def iou(mask1, mask2):
     pass
 
 
 def main():
-    gt = load_mask("./test_images/test_segm_input_B/mask1.png")
-    img2 = load_mask("./test_images/test_segm_input_B/mask2.png")
-    # img2 = load_mask("./test_images/test_segm_input_B/mask3.png")
-    # img2 = load_mask("./test_images/test_segm_input_B/mask1.png")
+    all_distances = []
+    # ------------------------example1-------------------------------
+    # gt = load_mask("./test_images/test_segm_input_B/mask1.png")
+    # img2 = load_mask("./test_images/test_segm_input_B/mask2.png")
+    # img3 = load_mask("./test_images/test_segm_input_B/mask3.png")
+    # img4_gt = load_mask("./test_images/test_segm_input_B/mask1.png")
 
+    # ------------------------example2-------------------------------
+    # gt = load_mask("./test_images/test_segm_input_Z2/mask1.png")
+    # img2 = load_mask("./test_images/test_segm_input_Z2/mask2.png")
+    # img3 = load_mask("./test_images/test_segm_input_Z2/mask3.png")
+    # img4_gt = load_mask("./test_images/test_segm_input_Z2/mask1.png")
+    # -----------------------example3--------------------------------
+    gt = load_mask("./test_images/test_segm_input_Z3/mask1.png")
+    img2 = load_mask("./test_images/test_segm_input_Z3/mask2.png")
+    img3 = load_mask("./test_images/test_segm_input_Z3/mask3.png")
+    img4_gt = load_mask("./test_images/test_segm_input_Z3/mask1.png")
+    test_cases = [img4_gt, img2, img3]
     scales = np.power(2, np.linspace(0, 9, num=10, dtype=int))
 
-    distances = []
-    box_counting_m1 = []
-    box_counting_m2 = []
-    box_counting_distance = []
-    gt = sobel.get_edges(gt)
-    img2 = sobel.get_edges(img2)
-    for scale in scales:
-        s_gt, s_img2 = pre_process_masks(gt, img2, scale)
-        box_counting_m1.append(np.sum(s_gt) + 1)
-        box_counting_m2.append(np.sum(s_img2) + 1)
-        # distance = calculate_ce(torch.from_numpy(s_gt.astype(float)), torch.from_numpy(s_img2.astype(float)), scale)
-        # distance = calculate_ce(
-        #     torch.tensor(box_counting_m1[-1], dtype=torch.float),
-        #     torch.tensor(box_counting_m2[-1], dtype=torch.float),
-        #     scale)
-        distance = calculate_ce(
-            torch.tensor(s_gt, dtype=torch.float),
-            torch.tensor(s_img2, dtype=torch.float),
-            scale)
-        # print(f"scale: {scale}")
-        # print(f"loss: {distance}")
-        box_counting_distance.append(torch.sum(distance))
-        print(f"box_counting_1: {box_counting_m1}")
-        print(f"box_counting_2: {box_counting_m2}")
-        distances.append(distance)
+    for img in test_cases:
+        distances = []
+        gt = sobel.get_edges(gt)
+        img = sobel.get_edges(img)
+        distance_dict = {}
+        for scale in scales:
+            s_gt, s_img2 = pre_process_masks(gt, img, scale)
+            distance = calculate_bce_with_logits(
+                torch.tensor(s_gt, dtype=torch.float),
+                torch.tensor(s_img2, dtype=torch.float),
+                scale)
+            distances.append(distance)
+            distance_dict[scale] = distance
 
-    miou_obj = miou.MIoU(scales, edge_only=True)
-    miou_obj.measure(gt, img2)
-    print(f"miou: {miou_obj.area}")
+        all_distances.append(distance_dict)
 
-    scales = miou.normalize_boxsizes(scales)
-    print(f"distances: {distances}")
-    mce = calculate_area(distances, scales)
-    print(f"mce: {mce}")
+        miou_obj = miou.MIoU(scales, edge_only=True)
+        miou_obj.measure(gt, img)
+        print(f"miou: {miou_obj.area}")
+
+        # scales = miou.normalize_boxsizes(scales)
+        print(f"distances: {distances}")
+        mce = calculate_area(distances, scales)
+        print(f"mce: {mce}")
 
     # gt, img3 = pre_process_masks(gt, img3)
+    visualize_distance(all_distances)
+
 
 main()
