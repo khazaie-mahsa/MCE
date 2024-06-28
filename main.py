@@ -42,6 +42,17 @@ def calculate_bce_with_logits(gt, prediction, scale):
     return l
 
 
+def calculate_bce(gt, prediction):
+    # print(prediction)
+    # print(gt)
+    loss = nn.BCELoss()
+    l = loss(prediction, gt)
+    # l = torch.sigmoid(l)
+    # print(l)
+    # print("-------------------------------------------------------------")
+    return l
+
+
 def calculate_area(distances, scales):
     b = copy.deepcopy(scales).reshape((-1, 1))
     normalized_scales = MinMaxScaler().fit_transform(b)
@@ -90,6 +101,19 @@ def iou(mask1, mask2):
     pass
 
 
+def test_sigmoid(tensor):
+    m = nn.Sigmoid()
+    print(m(tensor))
+
+
+def normalize_distance(distance):
+    # m = nn.Softmax()
+    # l = m(distance)
+    # print(l)
+    l = torch.exp(-distance)
+    return l
+
+
 def main():
     all_distances = []
     # ------------------------example1-------------------------------
@@ -108,6 +132,7 @@ def main():
     img2 = load_mask("./test_images/test_segm_input_Z3/mask2.png")
     img3 = load_mask("./test_images/test_segm_input_Z3/mask3.png")
     img4_gt = load_mask("./test_images/test_segm_input_Z3/mask1.png")
+
     test_cases = [img4_gt, img2, img3]
     scales = np.power(2, np.linspace(0, 9, num=10, dtype=int))
 
@@ -118,10 +143,20 @@ def main():
         distance_dict = {}
         for scale in scales:
             s_gt, s_img2 = pre_process_masks(gt, img, scale)
-            distance = calculate_bce_with_logits(
+
+            # test_sigmoid(torch.tensor(s_gt, dtype=torch.float))
+            # test_sigmoid(torch.tensor(s_img2, dtype=torch.float))
+
+            # distance = calculate_bce_with_logits(
+            #     torch.tensor(s_gt, dtype=torch.float),
+            #     torch.tensor(s_img2, dtype=torch.float),
+            #     scale)
+            distance = calculate_bce(
                 torch.tensor(s_gt, dtype=torch.float),
-                torch.tensor(s_img2, dtype=torch.float),
-                scale)
+                torch.tensor(s_img2, dtype=torch.float))
+            # test_sigmoid(distance)
+            print(f"distance: {distance}")
+            distance = normalize_distance(distance)
             distances.append(distance)
             distance_dict[scale] = distance
 
